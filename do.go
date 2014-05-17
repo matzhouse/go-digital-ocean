@@ -2,11 +2,19 @@ package digitalocean
 
 import (
 	"bytes"
-	"fmt"
-	"log"
-	"os"
 	"encoding/json"
+	"fmt"
+	"io/ioutil"
+	"log"
+	"net/http"
+	"os"
 )
+
+type Response struct {
+	Status  string `json:"status"`
+	Error   string `json:"message,omitempty"`
+	Message string `json:"error_message,omitempty"`
+}
 
 type auth struct {
 	client_id string
@@ -17,40 +25,9 @@ type Client struct {
 	Auth auth
 }
 
-type Status struct {
-	Status  string `json:"status"`
-	Message string `json:"message"`
-}
-
-type Account struct {
-	Droplets []Droplet
-	Regions  []Region
-	Images   []Image
-}
-
 type Request struct {
 	Uri      string
 	Response interface{}
-}
-
-type Droplet struct {
-	Id                 int
-	Name               string
-	Image_id           int
-	Size_id            int
-	Region_id          int
-	Backups_active     int
-	Ip_address         string
-	Private_ip_address string
-	Locked             bool
-	Status             string
-	Created_at         string
-}
-
-type Region struct {
-}
-
-type Image struct {
 }
 
 func NewClient() Client {
@@ -71,54 +48,46 @@ func NewClient() Client {
 		log.Fatal("Digital Ocean api key not available")
 	}
 
+	c.Auth.client_id = cid
+	c.Auth.api_key = apikey
+
 	return c
 
 }
 
-func (a auth) String() string {
+func (a auth) string() string {
 	return fmt.Sprintf("?client_id=%s&api_key=%s", a.client_id, a.api_key)
 }
 
-func (c Client) do(r *Request) Response, err {
+func (c Client) do(r *Request) error {
 
 	var dourl bytes.Buffer
 
 	// make the url
 	dourl.WriteString("https://api.digitalocean.com/v1")
 	dourl.WriteString(r.Uri)
-	dourl.WriteString(c.Auth.String())
+	dourl.WriteString(c.Auth.string())
 
 	res, err := http.Get(dourl.String())
+
+	resp := r.Response
+
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	res, err := ioutil.ReadAll(res.Body)
+	rj, err := ioutil.ReadAll(res.Body)
 	res.Body.Close()
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	r := Response{}
-
-	err = json.Unmarshal(res, r)
+	err = json.Unmarshal(rj, resp)
 
 	if err != nil {
-		return nil, err
+		log.Fatal(err)
 	}
 
-	return r, nil
-
-}
-
-func (c Client) Droplets() (r Request, err error) {
-
-	r = Request{Uri: "/droplets/"}
-
-	c.do(&req)
-
-	//return 0, errors.New("math: square root of negative number")
-
-	return r, nil
+	return nil
 
 }
